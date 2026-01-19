@@ -1,4 +1,4 @@
-const INVIDIOUS = "https://yewtu.be"; // change if this instance is down
+const INVIDIOUS = "https://inv.nadeko.net/embed/VIDEO_ID"; // change if this instance is down
 
 function searchVideos() {
   const q = document.getElementById("query").value.trim();
