@@ -2,8 +2,22 @@
 const THEMES = ['default', 'purple', 'green', 'sunset'];
 let currentThemeIndex = 0;
 
-const themeBtn = document.getElementById('themeBtn');
-themeBtn.addEventListener('click', toggleTheme);
+document.addEventListener('DOMContentLoaded', function() {
+  loadTheme();
+  setupEventListeners();
+});
+
+function setupEventListeners() {
+  const themeBtn = document.getElementById('themeBtn');
+  const searchBtn = document.getElementById('searchBtn');
+  const queryInput = document.getElementById('query');
+
+  if (themeBtn) themeBtn.addEventListener('click', toggleTheme);
+  if (searchBtn) searchBtn.addEventListener('click', searchVideos);
+  if (queryInput) queryInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') searchVideos();
+  });
+}
 
 function toggleTheme() {
   currentThemeIndex = (currentThemeIndex + 1) % THEMES.length;
@@ -18,7 +32,6 @@ function toggleTheme() {
   localStorage.setItem('flowplay-theme', theme);
 }
 
-// Load saved theme
 function loadTheme() {
   const savedTheme = localStorage.getItem('flowplay-theme') || 'default';
   const index = THEMES.indexOf(savedTheme);
@@ -30,81 +43,88 @@ function loadTheme() {
   }
 }
 
-loadTheme();
-
 // ===== Search Functionality =====
-const queryInput = document.getElementById('query');
-const searchBtn = document.getElementById('searchBtn');
-const searchStatus = document.getElementById('searchStatus');
-const playerSection = document.getElementById('playerSection');
-const player = document.getElementById('player');
-const resultsGrid = document.getElementById('results');
-const noResults = document.getElementById('noResults');
-
-searchBtn.addEventListener('click', searchVideos);
-queryInput.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') searchVideos();
-});
-
-// Invidious API instances to try
 const API_INSTANCES = [
   'https://yewtu.be',
-  'https://inv.tux.pizza',
-  'https://invidious.io',
-  'https://inv.nadeko.net'
+  'https://inv.tux.pizza'
 ];
 
-async function searchVideos() {
+function searchVideos() {
+  const queryInput = document.getElementById('query');
+  const searchStatus = document.getElementById('searchStatus');
+  const resultsGrid = document.getElementById('results');
+  const noResults = document.getElementById('noResults');
+  
   const query = queryInput.value.trim();
-  if (!query) return;
-
-  searchStatus.textContent = '🔍 Searching...';
-  searchStatus.style.color = 'var(--accent-secondary)';
-  resultsGrid.innerHTML = '';
-  noResults.classList.add('hidden');
-  playerSection.classList.add('hidden');
-
-  let results = null;
-
-  // Try each API instance
-  for (const instance of API_INSTANCES) {
-    try {
-      const url = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-      const response = await fetch(url, { 
-        signal: AbortSignal.timeout(5000)
-      });
-      
-      if (response.ok) {
-        results = await response.json();
-        break;
-      }
-    } catch (err) {
-      console.log(`Instance ${instance} failed, trying next...`);
-      continue;
-    }
-  }
-
-  if (!results || !Array.isArray(results) || results.length === 0) {
-    searchStatus.textContent = '❌ No results found. Try another search.';
-    searchStatus.style.color = 'var(--error-color)';
-    noResults.classList.remove('hidden');
+  if (!query) {
+    searchStatus.textContent = 'Please enter a search term';
     return;
   }
 
-  displayResults(results);
-  searchStatus.textContent = `✅ Found ${results.length} results`;
-  searchStatus.style.color = 'var(--success-color)';
+  searchStatus.textContent = '🔍 Searching...';
+  searchStatus.style.color = '#00aaff';
+  resultsGrid.innerHTML = '';
+  if (noResults) noResults.classList.add('hidden');
+
+  // Try first instance
+  const url = `${API_INSTANCES[0]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+  
+  fetch(url)
+    .then(res => {
+      if (!res.ok) throw new Error('Search failed');
+      return res.json();
+    })
+    .then(results => {
+      displayResults(results);
+      searchStatus.textContent = `✅ Found ${results.length} results`;
+      searchStatus.style.color = '#10b981';
+    })
+    .catch(err => {
+      console.log('First instance failed, trying backup...');
+      // Try second instance
+      const backupUrl = `${API_INSTANCES[1]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+      
+      fetch(backupUrl)
+        .then(res => {
+          if (!res.ok) throw new Error('Backup search failed');
+          return res.json();
+        })
+        .then(results => {
+          displayResults(results);
+          searchStatus.textContent = `✅ Found ${results.length} results`;
+          searchStatus.style.color = '#10b981';
+        })
+        .catch(err2 => {
+          console.error('Both searches failed:', err2);
+          searchStatus.textContent = '❌ Could not search videos. Try again.';
+          searchStatus.style.color = '#ef4444';
+          if (noResults) {
+            noResults.classList.remove('hidden');
+          }
+        });
+    });
 }
 
 function displayResults(results) {
+  const resultsGrid = document.getElementById('results');
+  const noResults = document.getElementById('noResults');
+  const searchStatus = document.getElementById('searchStatus');
+  
   resultsGrid.innerHTML = '';
   
+  if (!Array.isArray(results) || results.length === 0) {
+    searchStatus.textContent = '❌ No results found';
+    searchStatus.style.color = '#ef4444';
+    if (noResults) noResults.classList.remove('hidden');
+    return;
+  }
+
   const videoResults = results.filter(item => item.type === 'video');
   
   if (videoResults.length === 0) {
-    noResults.classList.remove('hidden');
     searchStatus.textContent = '❌ No videos found';
-    searchStatus.style.color = 'var(--error-color)';
+    searchStatus.style.color = '#ef4444';
+    if (noResults) noResults.classList.remove('hidden');
     return;
   }
 
@@ -112,6 +132,8 @@ function displayResults(results) {
     const card = createVideoCard(video);
     resultsGrid.appendChild(card);
   });
+  
+  if (noResults) noResults.classList.add('hidden');
 }
 
 function createVideoCard(video) {
@@ -120,22 +142,25 @@ function createVideoCard(video) {
 
   // Get thumbnail
   const thumbs = video.videoThumbnails || [];
-  const thumbnail = (thumbs[1]?.url) || (thumbs[0]?.url) || '';
+  const thumbnail = (thumbs[1] && thumbs[1].url) || (thumbs[0] && thumbs[0].url) || '';
 
   // Format duration
   const duration = formatDuration(video.lengthSeconds || 0);
 
+  const title = escapeHtml(video.title || 'Unknown');
+  const author = escapeHtml(video.author || 'Unknown');
+
   card.innerHTML = `
     <div class="video-thumb">
-      ${thumbnail ? `<img src="${thumbnail}" alt="${video.title}">` : '<div style="height: 100%; background: linear-gradient(135deg, #2d3748, #4a5568);"></div>'}
+      ${thumbnail ? `<img src="${thumbnail}" alt="${title}">` : '<div style="height: 100%; background: linear-gradient(135deg, #2d3748, #4a5568);"></div>'}
       <div class="play-overlay">
         <div class="play-icon">▶</div>
       </div>
     </div>
     <div class="video-info">
-      <div class="video-title">${escapeHtml(video.title)}</div>
+      <div class="video-title">${title}</div>
       <div class="video-meta">
-        <span class="video-author">${escapeHtml(video.author || 'Unknown')}</span>
+        <span class="video-author">${author}</span>
         <span class="video-duration">${duration}</span>
       </div>
     </div>
@@ -146,11 +171,18 @@ function createVideoCard(video) {
 }
 
 function playVideo(videoId) {
+  const playerSection = document.getElementById('playerSection');
+  const player = document.getElementById('player');
+  
+  if (!playerSection || !player) return;
+  
   playerSection.classList.remove('hidden');
   
   player.innerHTML = `
     <div class="player-container">
       <iframe
+        width="100%"
+        height="500"
         src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1"
         allow="autoplay; encrypted-media; fullscreen"
         allowfullscreen>
@@ -174,7 +206,12 @@ function formatDuration(seconds) {
 }
 
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
 }
