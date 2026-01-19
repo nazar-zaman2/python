@@ -1,5 +1,11 @@
-const INVIDIOUS_API = "https://inv.nadeko.net"; // Invidious instance for searching
-const CORS_PROXY = "https://api.allorigins.win/raw?url="; // CORS proxy for GitHub Pages
+// Multiple Invidious instances for fallback
+const INVIDIOUS_APIS = [
+  "https://inv.nadeko.net",
+  "https://invidious.io",
+  "https://yewtu.be",
+  "https://inv.tux.pizza"
+];
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 function searchVideos() {
   const q = document.getElementById("query").value.trim();
@@ -8,28 +14,58 @@ function searchVideos() {
   const resultsDiv = document.getElementById("results");
   resultsDiv.innerHTML = "<p>Searching...</p>";
 
-  const searchUrl = `${INVIDIOUS_API}/api/v1/search?q=${encodeURIComponent(q)}&type=video`;
+  // Try multiple instances in sequence
+  searchWithFallback(q, 0, resultsDiv);
+}
+
+function searchWithFallback(query, apiIndex, resultsDiv) {
+  if (apiIndex >= INVIDIOUS_APIS.length) {
+    // All direct requests failed, try CORS proxy
+    searchWithCorsProxy(query, resultsDiv);
+    return;
+  }
+
+  const searchUrl = `${INVIDIOUS_APIS[apiIndex]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
   
-  // Try direct request first, then fallback to CORS proxy
-  fetch(searchUrl)
+  fetch(searchUrl, { timeout: 5000 })
     .then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     })
-    .then(performSearch)
+    .then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        performSearch(data);
+      } else {
+        throw new Error("No data");
+      }
+    })
     .catch(err => {
-      console.warn("Direct request failed, trying CORS proxy...");
-      return fetch(CORS_PROXY + encodeURIComponent(searchUrl))
-        .then(res => res.json())
-        .then(data => {
-          if (typeof data === 'string') return JSON.parse(data);
-          return data;
-        })
-        .then(performSearch)
-        .catch(corsErr => {
-          console.error("Both requests failed:", corsErr);
-          resultsDiv.innerHTML = "<p>Error searching videos. Check console for details.</p>";
-        });
+      console.warn(`API ${apiIndex} failed:`, err.message);
+      // Try next instance
+      searchWithFallback(query, apiIndex + 1, resultsDiv);
+    });
+}
+
+function searchWithCorsProxy(query, resultsDiv) {
+  const searchUrl = `${INVIDIOUS_APIS[0]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+  
+  fetch(CORS_PROXY + encodeURIComponent(searchUrl))
+    .then(res => res.text())
+    .then(data => {
+      try {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          performSearch(parsed);
+        } else {
+          resultsDiv.innerHTML = "<p>No results found.</p>";
+        }
+      } catch (e) {
+        throw new Error("Parse error");
+      }
+    })
+    .catch(err => {
+      console.error("All search methods failed:", err);
+      resultsDiv.innerHTML = "<p style='color: #ff6b6b;'>Unable to search videos. Please try again or check your internet connection.</p>";
     });
 }
 
