@@ -14,7 +14,7 @@
 body {
   font-family: Arial, sans-serif;
   margin: 20px;
-  background: #0f172a;
+  background: var(#0f172a);
   background-image: radial-gradient(circle at 25% 25%, rgba(0,170,255,0.1) 2px, transparent 2px), radial-gradient(circle at 75% 75%, rgba(0,170,255,0.1) 2px, transparent 2px);
   background-size: 20px 20px;
   color: #e5e7eb;
