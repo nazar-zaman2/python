@@ -44,7 +44,11 @@ function loadTheme() {
 }
 
 // ===== Search Functionality =====
+// Using CORS proxy to bypass restrictions
+const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
 const API_INSTANCES = [
+  'https://inv.nadeko.net',
+  'https://invidious.io',
   'https://yewtu.be',
   'https://inv.tux.pizza'
 ];
@@ -66,42 +70,42 @@ function searchVideos() {
   resultsGrid.innerHTML = '';
   if (noResults) noResults.classList.add('hidden');
 
-  // Try first instance
-  const url = `${API_INSTANCES[0]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+  trySearchWithInstance(0, query, searchStatus, resultsGrid, noResults);
+}
+
+function trySearchWithInstance(instanceIndex, query, searchStatus, resultsGrid, noResults) {
+  if (instanceIndex >= API_INSTANCES.length) {
+    searchStatus.textContent = '❌ Search temporarily unavailable. Please try again.';
+    searchStatus.style.color = '#ef4444';
+    if (noResults) noResults.classList.remove('hidden');
+    return;
+  }
+
+  const instance = API_INSTANCES[instanceIndex];
+  const url = `${instance}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
   
-  fetch(url)
+  fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+  })
     .then(res => {
-      if (!res.ok) throw new Error('Search failed');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
     })
     .then(results => {
-      displayResults(results);
-      searchStatus.textContent = `✅ Found ${results.length} results`;
-      searchStatus.style.color = '#10b981';
+      if (Array.isArray(results) && results.length > 0) {
+        displayResults(results);
+        searchStatus.textContent = `✅ Found ${results.length} results`;
+        searchStatus.style.color = '#10b981';
+      } else {
+        throw new Error('No results');
+      }
     })
     .catch(err => {
-      console.log('First instance failed, trying backup...');
-      // Try second instance
-      const backupUrl = `${API_INSTANCES[1]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
-      
-      fetch(backupUrl)
-        .then(res => {
-          if (!res.ok) throw new Error('Backup search failed');
-          return res.json();
-        })
-        .then(results => {
-          displayResults(results);
-          searchStatus.textContent = `✅ Found ${results.length} results`;
-          searchStatus.style.color = '#10b981';
-        })
-        .catch(err2 => {
-          console.error('Both searches failed:', err2);
-          searchStatus.textContent = '❌ Could not search videos. Try again.';
-          searchStatus.style.color = '#ef4444';
-          if (noResults) {
-            noResults.classList.remove('hidden');
-          }
-        });
+      console.log(`Instance ${instanceIndex} (${instance}) failed:`, err.message);
+      // Try next instance
+      setTimeout(() => {
+        trySearchWithInstance(instanceIndex + 1, query, searchStatus, resultsGrid, noResults);
+      }, 100);
     });
 }
 
