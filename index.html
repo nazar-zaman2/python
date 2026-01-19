@@ -1,23 +1,63 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Video Search</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlowPlay - Video Search & Streaming</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <h1>Video Search</h1>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <span class="logo-icon">▶</span>
+        <h1>FlowPlay</h1>
+      </div>
+      <div class="theme-toggle">
+        <button id="themeBtn" class="theme-btn" title="Toggle Color Theme">🎨 Theme</button>
+      </div>
+    </div>
+  </header>
 
-  <div id="search-bar">
-    <input id="query" placeholder="Search videos..." size="40">
-    <button onclick="searchVideos()">Search</button>
-  </div>
+  <!-- Search Section -->
+  <main class="container">
+    <section class="search-section">
+      <div class="search-box">
+        <input 
+          id="query" 
+          type="text" 
+          placeholder="Search for videos..." 
+          autocomplete="off"
+        >
+        <button id="searchBtn" class="search-btn">
+          <span class="search-icon">🔍</span>
+          <span>Search</span>
+        </button>
+      </div>
+      <div id="searchStatus" class="search-status"></div>
+    </section>
 
-  <div id="player"></div>
+    <!-- Player Section -->
+    <section id="playerSection" class="player-section hidden">
+      <div id="player" class="player-container"></div>
+    </section>
 
-  <h2>Results</h2>
-  <div id="results"></div>
+    <!-- Results Section -->
+    <section class="results-section">
+      <h2 class="results-title">Results</h2>
+      <div id="results" class="results-grid"></div>
+      <div id="noResults" class="no-results hidden">
+        <p>Try searching for a video or music to get started</p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>FlowPlay - Free Video Search & Streaming Platform</p>
+  </footer>
 
   <script src="script.js"></script>
 </body>
