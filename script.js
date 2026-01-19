@@ -1,4 +1,5 @@
 const INVIDIOUS_API = "https://inv.nadeko.net"; // Invidious instance for searching
+const CORS_PROXY = "https://api.allorigins.win/raw?url="; // CORS proxy for GitHub Pages
 
 function searchVideos() {
   const q = document.getElementById("query").value.trim();
@@ -7,41 +8,60 @@ function searchVideos() {
   const resultsDiv = document.getElementById("results");
   resultsDiv.innerHTML = "<p>Searching...</p>";
 
-  fetch(`${INVIDIOUS_API}/api/v1/search?q=${encodeURIComponent(q)}&type=video`)
-    .then(res => res.json())
-    .then(data => {
-      resultsDiv.innerHTML = "";
-
-      if (!Array.isArray(data) || data.length === 0) {
-        resultsDiv.innerHTML = "<p>No results found.</p>";
-        return;
-      }
-
-      data.forEach(item => {
-        if (item.type !== "video") return; // Skip non-video results
-        
-        const id = item.videoId;
-        const title = item.title;
-        const thumbs = item.videoThumbnails || [];
-        const thumb = (thumbs[2] && thumbs[2].url) || (thumbs[0] && thumbs[0].url) || "";
-        const author = item.author || "Unknown";
-        const duration = item.lengthSeconds || "0";
-
-        const div = document.createElement("div");
-        div.className = "video";
-        div.innerHTML = `
-          <img src="${thumb}" alt="${title}" onclick="playVideo('${id}')">
-          <p class="title">${title}</p>
-          <p class="author">${author}</p>
-          <p class="duration">${formatDuration(duration)}</p>
-        `;
-        resultsDiv.appendChild(div);
-      });
+  const searchUrl = `${INVIDIOUS_API}/api/v1/search?q=${encodeURIComponent(q)}&type=video`;
+  
+  // Try direct request first, then fallback to CORS proxy
+  fetch(searchUrl)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
     })
+    .then(performSearch)
     .catch(err => {
-      console.error(err);
-      resultsDiv.innerHTML = "<p>Error searching videos. Please try again.</p>";
+      console.warn("Direct request failed, trying CORS proxy...");
+      return fetch(CORS_PROXY + encodeURIComponent(searchUrl))
+        .then(res => res.json())
+        .then(data => {
+          if (typeof data === 'string') return JSON.parse(data);
+          return data;
+        })
+        .then(performSearch)
+        .catch(corsErr => {
+          console.error("Both requests failed:", corsErr);
+          resultsDiv.innerHTML = "<p>Error searching videos. Check console for details.</p>";
+        });
     });
+}
+
+function performSearch(data) {
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = "";
+
+  if (!Array.isArray(data) || data.length === 0) {
+    resultsDiv.innerHTML = "<p>No results found.</p>";
+    return;
+  }
+
+  data.forEach(item => {
+    if (item.type !== "video") return; // Skip non-video results
+    
+    const id = item.videoId;
+    const title = item.title;
+    const thumbs = item.videoThumbnails || [];
+    const thumb = (thumbs[2] && thumbs[2].url) || (thumbs[0] && thumbs[0].url) || "";
+    const author = item.author || "Unknown";
+    const duration = item.lengthSeconds || "0";
+
+    const div = document.createElement("div");
+    div.className = "video";
+    div.innerHTML = `
+      <img src="${thumb}" alt="${title}" onclick="playVideo('${id}')">
+      <p class="title">${title}</p>
+      <p class="author">${author}</p>
+      <p class="duration">${formatDuration(duration)}</p>
+    `;
+    resultsDiv.appendChild(div);
+  });
 }
 
 function formatDuration(seconds) {
