@@ -1,11 +1,6 @@
-// Multiple Invidious instances for fallback
-const INVIDIOUS_APIS = [
-  "https://inv.nadeko.net",
-  "https://invidious.io",
-  "https://yewtu.be",
-  "https://inv.tux.pizza"
-];
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+// Use a reliable CORS proxy service
+const CORS_PROXY = "https://cors-anywhere.herokuapp.com/";
+const INVIDIOUS_API = "https://yewtu.be/api/v1/search";
 
 function searchVideos() {
   const q = document.getElementById("query").value.trim();
@@ -14,58 +9,41 @@ function searchVideos() {
   const resultsDiv = document.getElementById("results");
   resultsDiv.innerHTML = "<p>Searching...</p>";
 
-  // Try multiple instances in sequence
-  searchWithFallback(q, 0, resultsDiv);
-}
-
-function searchWithFallback(query, apiIndex, resultsDiv) {
-  if (apiIndex >= INVIDIOUS_APIS.length) {
-    // All direct requests failed, try CORS proxy
-    searchWithCorsProxy(query, resultsDiv);
-    return;
-  }
-
-  const searchUrl = `${INVIDIOUS_APIS[apiIndex]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+  // Build search URL with parameters
+  const searchParams = new URLSearchParams({
+    q: q,
+    type: "video"
+  });
   
-  fetch(searchUrl, { timeout: 5000 })
+  const searchUrl = `${INVIDIOUS_API}?${searchParams}`;
+
+  // Try direct fetch first
+  fetch(searchUrl)
     .then(res => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     })
-    .then(data => {
-      if (Array.isArray(data) && data.length > 0) {
-        performSearch(data);
-      } else {
-        throw new Error("No data");
-      }
-    })
+    .then(performSearch)
     .catch(err => {
-      console.warn(`API ${apiIndex} failed:`, err.message);
-      // Try next instance
-      searchWithFallback(query, apiIndex + 1, resultsDiv);
+      console.log("Direct request failed, trying alternative method...");
+      // If direct fails, try with a different instance
+      searchWithBackup(q, resultsDiv);
     });
 }
 
-function searchWithCorsProxy(query, resultsDiv) {
-  const searchUrl = `${INVIDIOUS_APIS[0]}/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
+function searchWithBackup(query, resultsDiv) {
+  // Alternative: Use a different Invidious instance
+  const altUrl = `https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(query)}&type=video`;
   
-  fetch(CORS_PROXY + encodeURIComponent(searchUrl))
-    .then(res => res.text())
-    .then(data => {
-      try {
-        const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          performSearch(parsed);
-        } else {
-          resultsDiv.innerHTML = "<p>No results found.</p>";
-        }
-      } catch (e) {
-        throw new Error("Parse error");
-      }
+  fetch(altUrl)
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
     })
+    .then(performSearch)
     .catch(err => {
-      console.error("All search methods failed:", err);
-      resultsDiv.innerHTML = "<p style='color: #ff6b6b;'>Unable to search videos. Please try again or check your internet connection.</p>";
+      console.error("Search failed:", err);
+      resultsDiv.innerHTML = "<p style='color: #ff6b6b;'><strong>Error:</strong> Could not fetch videos. Try a different search term or check your connection.</p>";
     });
 }
 
