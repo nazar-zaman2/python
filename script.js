@@ -1,4 +1,4 @@
-const INVIDIOUS = "https://invidious.snopyta.org"; // change if this instance is down
+const INVIDIOUS = "https://yewtu.be"; // change if this instance is down
 
 function searchVideos() {
   const q = document.getElementById("query").value.trim();
